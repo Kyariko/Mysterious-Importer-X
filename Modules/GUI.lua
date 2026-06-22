@@ -45,9 +45,7 @@ function Drag(frame)
     dragFrame = frame
 end
 
-function GUI.Init_GUI()
-    
-    local UI : ScreenGui = game:GetObjects(getcustomasset("Mysterious Importer X/UI.rbxm"))[1]
+function GUI.Init_GUI(UI : ScreenGui)
     UI.Parent = LocalPlayer.PlayerGui
 
     UI.Main.Top.InputBegan:Connect(function(input)
