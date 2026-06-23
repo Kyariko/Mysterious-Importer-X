@@ -140,7 +140,7 @@ function SetupLocalModel(LocalModel, RealModel)
     if wheelsFolder then
         local wheelOffsets = {}
         for _, localWheel in ipairs(wheelsFolder:GetChildren()) do
-            if localWheel:IsA("Model") then
+            if localWheel:IsA("Model") or localWheel:IsA("BasePart") then
                 local success, pivot = pcall(function()
                     return localWheel:GetPivot()
                 end)
@@ -312,6 +312,13 @@ function Import.applyScale(LocalModel, scale)
     local engine = LocalModel:FindFirstChild("LocalCustomEngine")
     if engine and engine:IsA("BasePart") then
         LocalModel.PrimaryPart = engine
+    end
+
+    local offsets = wheelOffsetCache[LocalModel]
+    if offsets and type(scale) == "number" then
+        for key, offset in pairs(offsets) do
+            offsets[key] = scaleCFrame(offset, scale)
+        end
     end
 end
 
