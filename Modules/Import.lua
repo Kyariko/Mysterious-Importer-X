@@ -405,19 +405,29 @@ function SetModelToEngine(LocalModel, RealModel)
 
     local MainWeld = Instance.new("Weld")
     MainWeld.Name = "CustomModelEngineWeld"
+    -- Remove any existing weld to avoid duplicates or stale transforms
+    for _, child in ipairs(RealEngine:GetChildren()) do
+        if child:IsA("Weld") and child.Name == "CustomModelEngineWeld" then
+            child:Destroy()
+        end
+    end
+
     -- Parent to RealEngine to keep the real part authoritative
     MainWeld.Parent = RealEngine
     -- Make the real engine the Part0 so it remains fixed; local engine is Part1
     MainWeld.Part0 = RealEngine
     MainWeld.Part1 = LocalEngine
-    -- Preserve current world-space relationship between the two parts
-    MainWeld.C0 = CFrame.new()
-    local ok, c1 = pcall(function()
-        return LocalEngine.CFrame:ToObjectSpace(RealEngine.CFrame)
+
+    -- Compute C0 such that: RealEngine.CFrame * C0 = LocalEngine.CFrame
+    -- This keeps the world-space relationship stable and avoids reversed/tiled orientation.
+    local ok, c0 = pcall(function()
+        return RealEngine.CFrame:ToObjectSpace(LocalEngine.CFrame)
     end)
-    if ok and c1 then
-        MainWeld.C1 = c1
+    if ok and c0 then
+        MainWeld.C0 = c0
+        MainWeld.C1 = CFrame.new()
     else
+        MainWeld.C0 = CFrame.new()
         MainWeld.C1 = CFrame.new()
     end
 end
