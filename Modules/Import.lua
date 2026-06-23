@@ -11,6 +11,11 @@ local wheelScaleStates = setmetatable({}, {__mode = "k"})
 local wheelScaleWatcherStarted = false
 local RunService = game:GetService("RunService")
 
+local function getRealEngine(model)
+    return model.PrimaryPart and model.PrimaryPart:IsA("BasePart") and model.PrimaryPart
+        or findDescendantByName(model, "Engine")
+end
+
 local function findFirstBasePart(model)
     for _, descendant in ipairs(model:GetDescendants()) do
         if descendant:IsA("BasePart") then
@@ -234,22 +239,6 @@ local function scaleCFrame(cframe, scale)
     return CFrame.fromMatrix(pos, right, up, look)
 end
 
-local function ensureModelPrimaryPart(model)
-    if not model or not model:IsA("Model") then
-        return nil
-    end
-
-    if model.PrimaryPart and model.PrimaryPart:IsA("BasePart") then
-        return model.PrimaryPart
-    end
-
-    local part = findFirstBasePart(model)
-    if part then
-        model.PrimaryPart = part
-    end
-    return model.PrimaryPart
-end
-
 local function applyWheelScaleToModel(wheelModel, scale)
     if not wheelModel or scale == nil then
         return
@@ -260,7 +249,6 @@ local function applyWheelScaleToModel(wheelModel, scale)
         return
     end
 
-    ensureModelPrimaryPart(wheelModel)
     pcall(function()
         wheelModel:ScaleTo(scale)
     end)
@@ -389,20 +377,13 @@ function SetModelToEngine(LocalModel, RealModel)
         return
     end
 
-    local RealEngine = RealModel.PrimaryPart or findDescendantByName(RealModel, "Engine")
-    if not RealEngine and RealModel.Parent then
-        RealEngine = findDescendantByName(RealModel.Parent, "Engine")
-    end
+    local RealEngine = getRealEngine(RealModel)
+
     if not RealEngine or not RealEngine:IsA("BasePart") then
-        RealEngine = findFirstBasePart(RealModel)
-        if RealEngine then
-            warn("SetModelToEngine: Engine part not found, falling back to real primary/base part")
-        end
-    end
-    if not RealEngine or not RealEngine:IsA("BasePart") then
-        warn("Real vehicle engine part not found or unsuitable")
+        warn("No valid RealEngine found")
         return
     end
+
     -- copy physical properties from the real engine to preserve mass/density
     pcall(function()
         if LocalEngine and LocalEngine:IsA("BasePart") then
