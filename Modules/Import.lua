@@ -217,19 +217,7 @@ local function scaleCFrame(cframe, scale)
     return CFrame.fromMatrix(pos, right, up, look)
 end
 
-local function hideLocalModel(Model)
-    if not Model then
-        return
-    end
-
-    for _, part in ipairs(Model:GetDescendants()) do
-        if part:IsA("BasePart") then
-            part.Transparency = 1
-            part.CanCollide = false
-            part.CanTouch = false
-        end
-    end
-end
+-- helper: hide all BasePart visuals (no longer used)
 
 function SetModelToEngine(LocalModel, RealModel)
     local LocalEngine = LocalModel.PrimaryPart
