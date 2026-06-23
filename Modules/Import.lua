@@ -87,12 +87,33 @@ function WeldAllToPrimary(Model: Model)
     end
 end
 
+local function findDescendantByName(root, name)
+    if not root or type(name) ~= "string" then
+        return nil
+    end
+
+    if root.Name == name then
+        return root
+    end
+
+    for _, child in ipairs(root:GetDescendants()) do
+        if child.Name == name then
+            return child
+        end
+    end
+
+    return nil
+end
+
 function CleanRealModel(RealModel)
+    local preset = findDescendantByName(RealModel, "Preset")
     for _, part in ipairs(RealModel:GetDescendants()) do
         if part:IsA("BasePart") then
-            part.Transparency = 1
-            if part.Name == "Windows" then
-                part.Size = Vector3.one * 0.001
+            if not (preset and part:IsDescendantOf(preset)) then
+                part.Transparency = 1
+                if part.Name == "Windows" then
+                    part.Size = Vector3.one * 0.001
+                end
             end
         end
     end
@@ -187,9 +208,18 @@ function SetModelToEngine(LocalModel, RealModel)
         return
     end
 
-    local RealEngine = findDescendantByName(RealModel, "Engine")
+    local RealEngine = RealModel.PrimaryPart or findDescendantByName(RealModel, "Engine")
+    if not RealEngine and RealModel.Parent then
+        RealEngine = findDescendantByName(RealModel.Parent, "Engine")
+    end
     if not RealEngine or not RealEngine:IsA("BasePart") then
-        warn("Real vehicle engine part not found")
+        RealEngine = findFirstBasePart(RealModel)
+        if RealEngine then
+            warn("SetModelToEngine: Engine part not found, falling back to real primary/base part")
+        end
+    end
+    if not RealEngine or not RealEngine:IsA("BasePart") then
+        warn("Real vehicle engine part not found or unsuitable")
         return
     end
     -- copy physical properties from the real engine to preserve mass/density
@@ -303,6 +333,12 @@ function Import.syncWheelOffsets(LocalModel, values)
         return
     end
 
+    local realPrimary = RealModel.PrimaryPart or findFirstBasePart(RealModel)
+    if not realPrimary then
+        warn("Import.syncWheelOffsets: real model has no primary part")
+        return
+    end
+
     local preset = findDescendantByName(RealModel, "Preset")
     if not preset then
         warn("Import.syncWheelOffsets: real preset not found")
@@ -342,20 +378,19 @@ function Import.syncWheelOffsets(LocalModel, values)
             uiOffset = Vector3.new(0, delta, 0)
         end
 
-        local enginePart = findDescendantByName(RealModel, "Engine")
-        if not enginePart or not enginePart:IsA("BasePart") then
-            warn("Import.syncWheelOffsets: real engine part missing")
-            continue
+        local scale = tonumber(values and values.MAIN_S) or 1
+        local offset = localOffset
+        if scale ~= 1 then
+            offset = scaleCFrame(offset, scale)
         end
+        offset = offset * CFrame.new(uiOffset)
 
-        local desired = enginePart.CFrame * (localOffset * CFrame.new(uiOffset))
+        local desired = realPrimary.CFrame * offset
 
-        if weld.Part0 == thrust and weld.Part1 == enginePart then
+        if weld.Part0 == thrust then
             weld.C0 = thrust.CFrame:ToObjectSpace(desired)
-            weld.C1 = CFrame.new()
-        elseif weld.Part1 == thrust and weld.Part0 == enginePart then
+        elseif weld.Part1 == thrust then
             weld.C1 = thrust.CFrame:ToObjectSpace(desired)
-            weld.C0 = CFrame.new()
         else
             warn("Import.syncWheelOffsets: unexpected weld orientation for", realName)
             if weld.Part0 == thrust then
