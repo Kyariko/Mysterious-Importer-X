@@ -81,6 +81,21 @@ local function findDescendantByName(root, name)
     return nil
 end
 
+local function getActualVehicleModels()
+    local packet = GetLocalVehiclePacket()
+    if not packet or not packet.Model then
+        return nil, nil
+    end
+
+    local wrapper = packet.Model
+    local actual = wrapper
+    if wrapper:FindFirstChild("Model") and wrapper.Model:IsA("Model") then
+        actual = wrapper.Model
+    end
+
+    return wrapper, actual
+end
+
 function CleanRealModel(RealModel)
     local preset = findDescendantByName(RealModel, "Preset")
     for _, part in ipairs(RealModel:GetDescendants()) do
@@ -95,7 +110,7 @@ function CleanRealModel(RealModel)
     end
 end
 
-function SetupLocalModel(LocalModel, RealModel)
+function SetupLocalModel(LocalModel, wrapperModel, RealModel)
     local wheelsFolder = LocalModel:FindFirstChild("Wheels", true)
     for _, obj in ipairs(LocalModel:GetDescendants()) do
         if obj:IsA("BasePart") then
@@ -134,7 +149,7 @@ function SetupLocalModel(LocalModel, RealModel)
         warn("SetupLocalModel: no Wheels folder found in local model")
     end
 
-    LocalModel.Parent = RealModel
+    LocalModel.Parent = wrapperModel
 end
 
 function WeldAllToPrimary(Model)
@@ -162,13 +177,13 @@ function WeldAllToPrimary(Model)
 end
 
 function Import.import_Init(LocalModel)
-    local RealModel = GetLocalVehiclePacket().Model
-    if not LocalModel or not RealModel then
+    local wrapperModel, RealModel = getActualVehicleModels()
+    if not LocalModel or not wrapperModel or not RealModel then
         return
     end
 
-    CleanRealModel(RealModel)
-    SetupLocalModel(LocalModel, RealModel)
+    CleanRealModel(wrapperModel)
+    SetupLocalModel(LocalModel, wrapperModel, RealModel)
 
     local realPrimary = RealModel.PrimaryPart or findFirstBasePart(RealModel)
     if realPrimary and LocalModel.PrimaryPart then
@@ -341,9 +356,15 @@ function Import.syncWheelOffsets(LocalModel, values)
         return
     end
 
-    local RealModel = GetLocalVehiclePacket().Model
-    if not RealModel then
+    local wrapperModel, RealModel = getActualVehicleModels()
+    if not wrapperModel or not RealModel then
         warn("Import.syncWheelOffsets: unable to get packet model")
+        return
+    end
+
+    local localPrimary = LocalModel.PrimaryPart or findFirstBasePart(LocalModel)
+    if not localPrimary then
+        warn("Import.syncWheelOffsets: local model has no primary part")
         return
     end
 
@@ -353,7 +374,7 @@ function Import.syncWheelOffsets(LocalModel, values)
         return
     end
 
-    local preset = findDescendantByName(RealModel, "Preset")
+    local preset = findDescendantByName(wrapperModel, "Preset") or findDescendantByName(RealModel, "Preset")
     if not preset then
         warn("Import.syncWheelOffsets: real preset not found")
         return
@@ -393,19 +414,32 @@ function Import.syncWheelOffsets(LocalModel, values)
         end
 
         local offset = localOffset * CFrame.new(uiOffset)
-        local desired = realPrimary.CFrame * offset
+        local desiredWorld = localPrimary.CFrame * offset
 
-        if weld.Part0 == thrust then
-            weld.C0 = thrust.CFrame:ToObjectSpace(desired)
-        elseif weld.Part1 == thrust then
-            weld.C1 = thrust.CFrame:ToObjectSpace(desired)
-        else
-            warn("Import.syncWheelOffsets: unexpected weld orientation for", realName)
-            if weld.Part0 == thrust then
-                weld.C0 = thrust.CFrame:ToObjectSpace(desired)
-            elseif weld.Part1 == thrust then
-                weld.C1 = thrust.CFrame:ToObjectSpace(desired)
+        -- Prefer applying the target relative to the weld's Part1 (engine)
+        local applied = false
+        if weld.Part1 and weld.Part1:IsA("BasePart") then
+            local ok, target = pcall(function()
+                return weld.Part1.CFrame:ToObjectSpace(desiredWorld)
+            end)
+            if ok and target then
+                pcall(function() weld.C1 = target end)
+                applied = true
             end
+        end
+
+        if not applied and weld.Part0 and weld.Part0:IsA("BasePart") then
+            local ok, target = pcall(function()
+                return weld.Part0.CFrame:ToObjectSpace(desiredWorld)
+            end)
+            if ok and target then
+                pcall(function() weld.C0 = target end)
+                applied = true
+            end
+        end
+
+        if not applied then
+            warn("Import.syncWheelOffsets: unexpected weld orientation for", realName)
         end
     end
 end
