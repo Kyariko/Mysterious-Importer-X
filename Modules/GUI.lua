@@ -34,6 +34,18 @@ GUI.Values = {
 
 GUI.App = {}
 
+local viewportCamera
+local viewportTarget = Vector3.new()
+local viewportDistance = 20
+local viewportYaw = 0
+local viewportPitch = math.rad(20)
+local viewportDragging = false
+local viewportDragStart = Vector2.new()
+local viewportYawStart = 0
+local viewportPitchStart = 0
+local viewportMinDistance = 4
+local viewportMaxDistance = 120
+
 local function findViewport(UI)
     for _, item in ipairs(UI:GetDescendants()) do
         if item:IsA("ViewportFrame") then
@@ -56,6 +68,7 @@ local function setupViewport(viewport)
     end
 
     viewport.CurrentCamera = camera
+    viewportCamera = camera
     return camera
 end
 
@@ -87,21 +100,32 @@ local function updateViewportModel(viewport, model)
     end)
 
     if success and center and size then
-        local lookAt = center.Position
-        local offset = Vector3.new(0, math.max(size.Y, 4) * 0.75 + 1.5, math.max(size.X, size.Y, size.Z) * 1.75)
-        viewport.CurrentCamera.CFrame = CFrame.lookAt(lookAt + offset, lookAt)
-        viewport.CurrentCamera.Focus = CFrame.new(lookAt)
+        viewportTarget = center.Position
+        viewportDistance = math.clamp(math.max(size.X, size.Y, size.Z) * 1.75, viewportMinDistance, viewportMaxDistance)
+        viewportYaw = 0
+        viewportPitch = math.rad(20)
+
+        local offset = Vector3.new(0, math.max(size.Y, 4) * 0.75 + 1.5, viewportDistance)
+        viewport.CurrentCamera.CFrame = CFrame.lookAt(viewportTarget + offset, viewportTarget)
+        viewport.CurrentCamera.Focus = CFrame.new(viewportTarget)
     end
 end
 
 local function tryPreviewCarID(viewport, carId)
-    if not viewport or carId == "" or not GUI.App.LoadVehicle then
+    if not viewport then
+        warn("ViewportFrame not found in UI")
+        return
+    end
+
+    if carId == "" or not GUI.App.LoadVehicle then
         return
     end
 
     local model = GUI.App.LoadVehicle(carId)
     if model then
         updateViewportModel(viewport, model)
+    else
+        warn("Vehicle preview failed for CarID:", carId)
     end
 end
 
@@ -149,14 +173,49 @@ function GUI.Init_GUI(UI : ScreenGui)
     for i,v in ipairs(UI:GetDescendants()) do
         if v:IsA("TextBox") then
             v.FocusLost:Connect(function(enterPressed)
-                if enterPressed then
-                    GUI.Values[v.Parent.Name] = v.Text
-                    if v.Name == "Input" and v.Parent.Name == "CarID" then
-                        tryPreviewCarID(viewport, v.Text)
-                    end
+                GUI.Values[v.Parent.Name] = v.Text
+                if v.Parent.Name == "CarID" then
+                    tryPreviewCarID(viewport, v.Text)
                 end
             end)
         end
+    end
+
+    if viewport then
+        local inputBegan = viewport.InputBegan:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton2 then
+                viewportDragging = true
+                viewportDragStart = UIS:GetMouseLocation()
+                viewportYawStart = viewportYaw
+                viewportPitchStart = viewportPitch
+            end
+        end)
+
+        local inputEnded = viewport.InputEnded:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseButton2 then
+                viewportDragging = false
+            end
+        end)
+
+        UIS.InputChanged:Connect(function(input)
+            if viewportDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
+                local delta = UIS:GetMouseLocation() - viewportDragStart
+                viewportYaw = viewportYawStart - delta.X * 0.003
+                viewportPitch = math.clamp(viewportPitchStart - delta.Y * 0.003, math.rad(-80), math.rad(80))
+                if viewportCamera then
+                    viewportCamera.CFrame = CFrame.new(viewportTarget) * CFrame.Angles(0, viewportYaw, 0) * CFrame.new(0, 0, viewportDistance) * CFrame.Angles(viewportPitch, 0, 0)
+                end
+            end
+        end)
+
+        UIS.InputChanged:Connect(function(input)
+            if input.UserInputType == Enum.UserInputType.MouseWheel then
+                viewportDistance = math.clamp(viewportDistance - input.Position.Z * 2, viewportMinDistance, viewportMaxDistance)
+                if viewportCamera then
+                    viewportCamera.CFrame = CFrame.new(viewportTarget) * CFrame.Angles(0, viewportYaw, 0) * CFrame.new(0, 0, viewportDistance) * CFrame.Angles(viewportPitch, 0, 0)
+                end
+            end
+        end)
     end
 
     UI.Main.Top.Import.InputBegan:Connect(function(Input)
