@@ -404,7 +404,7 @@ function SetModelToEngine(LocalModel, RealModel)
     end)
 
     local MainWeld = Instance.new("Weld")
-    MainWeld.Name = "CustomModelEngineWeld"
+    
     -- Remove any existing weld to avoid duplicates or stale transforms
     for _, child in ipairs(RealEngine:GetChildren()) do
         if child:IsA("Weld") and child.Name == "CustomModelEngineWeld" then
@@ -413,6 +413,7 @@ function SetModelToEngine(LocalModel, RealModel)
     end
 
     -- Parent to RealEngine to keep the real part authoritative
+    MainWeld.Name = "CustomModelEngineWeld"
     MainWeld.Parent = RealEngine
     -- Make the real engine the Part0 so it remains fixed; local engine is Part1
     MainWeld.Part0 = RealEngine
