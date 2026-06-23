@@ -17,6 +17,52 @@ local function findFirstBasePart(model)
     return nil
 end
 
+local function ensureLocalEngine(LocalModel)
+    if not LocalModel then
+        return nil
+    end
+
+    local engine = LocalModel:FindFirstChild("LocalCustomEngine")
+    if engine and engine:IsA("BasePart") then
+        LocalModel.PrimaryPart = engine
+        return engine
+    end
+
+    local success, center, size = pcall(function()
+        return LocalModel:GetBoundingBox()
+    end)
+
+    if not success or not center or not size then
+        local fallbackPart = findFirstBasePart(LocalModel)
+        if fallbackPart then
+            center = fallbackPart.CFrame
+            size = Vector3.new(1, 1, 1)
+        else
+            center = CFrame.new()
+            size = Vector3.new(1, 1, 1)
+        end
+    end
+
+    local paddedSize = Vector3.new(
+        math.max(0.1, size.X),
+        math.max(0.1, size.Y),
+        math.max(0.1, size.Z)
+    )
+
+    engine = Instance.new("Part")
+    engine.Name = "LocalCustomEngine"
+    engine.Size = paddedSize
+    engine.Transparency = 1
+    engine.CanCollide = false
+    engine.Massless = false
+    engine.Anchored = false
+    engine.CFrame = center
+    engine.Parent = LocalModel
+
+    LocalModel.PrimaryPart = engine
+    return engine
+end
+
 function WeldAllToPrimary(Model: Model)
     local PrimaryPart = Model.PrimaryPart or findFirstBasePart(Model)
     if not PrimaryPart then
@@ -62,42 +108,12 @@ function SetupLocalModel(LocalModel, RealModel)
         end
     end
 
-    -- compute bounding box of the local model to create a primary part that
-    -- envelopes the whole model and sits at its center
-    local success, center, size = pcall(function()
-        return LocalModel:GetBoundingBox()
-    end)
-
-    -- fallback if GetBoundingBox failed
-    if not success or not center or not size then
-        local fallbackPart = findFirstBasePart(LocalModel)
-        if fallbackPart then
-            center = fallbackPart.CFrame
-            size = Vector3.new(1,1,1)
-        else
-            center = CFrame.new()
-            size = Vector3.new(1,1,1)
-        end
+    local Engine = ensureLocalEngine(LocalModel)
+    if not Engine then
+        warn("SetupLocalModel: failed to create local engine")
+        return
     end
 
-    -- ensure minimum dimensions to avoid size zero
-    local paddedSize = Vector3.new(
-        math.max(0.1, size.X),
-        math.max(0.1, size.Y),
-        math.max(0.1, size.Z)
-    )
-
-    local Engine = Instance.new("Part")
-    Engine.Name = "LocalCustomEngine"
-    Engine.Size = paddedSize
-    Engine.Transparency = 1
-    Engine.CanCollide = false
-    Engine.Massless = false
-    Engine.Anchored = false
-    Engine.CFrame = center
-    Engine.Parent = LocalModel
-
-    LocalModel.PrimaryPart = Engine
     LocalModel.Name = "LocalCustomModel"
 
     if wheelsFolder then
@@ -219,6 +235,22 @@ function Import.applyOffsets(LocalModel, c0, c1)
             if v:IsA("Weld") and v.Name == "CustomModelEngineWeld" then
                 weld = v
                 break
+            end
+        end
+    end
+
+    if not weld then
+        local RealModel = GetLocalVehiclePacket().Model
+        if RealModel then
+            SetModelToEngine(LocalModel, RealModel)
+            weld = primary:FindFirstChild("CustomModelEngineWeld")
+            if not weld then
+                for _, v in ipairs(primary:GetDescendants()) do
+                    if v:IsA("Weld") and v.Name == "CustomModelEngineWeld" then
+                        weld = v
+                        break
+                    end
+                end
             end
         end
     end
