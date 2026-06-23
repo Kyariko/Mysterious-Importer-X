@@ -230,45 +230,24 @@ function GUI.Init_GUI(UI : ScreenGui)
         if Input.UserInputType == Enum.UserInputType.MouseButton1 then
             refreshGuiValues()
 
-            local carId = UI.Main.CarID.Input.Text
-            local model = GUI.App.LoadVehicle and GUI.App.LoadVehicle(carId)
-            if not model then
-                warn("Import failed: invalid CarID or vehicle could not be loaded.")
-                return
-            end
+            local model = GUI.App.LoadVehicle and GUI.App.LoadVehicle(UI.Main.CarID.Input.Text)
+            GUI.App.Import.import_Init(model)
+            -- MAIN_S is the model scale; apply it first, then apply MAIN_O as a vertical offset
+            if model and GUI.App.Import and GUI.Values then
+                local scale = tonumber(GUI.Values.MAIN_S) or 1
+                pcall(function()
+                    GUI.App.Import.applyScale(model, scale)
+                end)
 
-            local app = GUI.App
-            if not app then
-                warn("Import failed: GUI.App is not bound")
-                return
-            end
+                local yOffset = tonumber(GUI.Values.MAIN_O) or 0
+                local offsetCFrame = CFrame.new(0, yOffset, 0)
+                pcall(function()
+                    GUI.App.Import.applyOffsets(model, offsetCFrame)
+                end)
 
-            local imp = app.Import
-            if not imp then
-                warn("Import module not available: cannot initialize import")
-                return
-            end
-
-            if type(imp.import_Init) == "function" then
-                pcall(imp.import_Init, model)
-            else
-                warn("Import.import_Init not present")
-                return
-            end
-
-            local scale = tonumber(GUI.Values.MAIN_S) or 1
-            if type(imp.applyScale) == "function" then
-                pcall(imp.applyScale, model, scale)
-            end
-
-            local yOffset = tonumber(GUI.Values.MAIN_O) or 0
-            local offsetCFrame = CFrame.new(0, yOffset, 0)
-            if type(imp.applyOffsets) == "function" then
-                pcall(imp.applyOffsets, model, offsetCFrame)
-            end
-
-            if type(imp.syncWheelOffsets) == "function" then
-                pcall(imp.syncWheelOffsets, model, GUI.Values)
+                pcall(function()
+                    GUI.App.Import.syncWheelOffsets(model, GUI.Values)
+                end)
             end
         end
     end)

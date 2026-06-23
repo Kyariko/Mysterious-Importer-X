@@ -63,30 +63,6 @@ local function ensureLocalEngine(LocalModel)
     return engine
 end
 
-function WeldAllToPrimary(Model: Model)
-    local PrimaryPart = Model.PrimaryPart or findFirstBasePart(Model)
-    if not PrimaryPart then
-        warn("No PrimaryPart set or found for model")
-        return
-    end
-
-    for _, part in ipairs(Model:GetDescendants()) do
-        if part:IsA("BasePart") and part ~= PrimaryPart then
-            part.Anchored = false
-
-            local weld = Instance.new("Weld")
-            weld.Name = part.Name .. "_Weld"
-            weld.Part0 = PrimaryPart
-            weld.Part1 = part
-
-            weld.C0 = PrimaryPart.CFrame:ToObjectSpace(part.CFrame)
-            weld.C1 = CFrame.new()
-
-            weld.Parent = PrimaryPart
-        end
-    end
-end
-
 local function findDescendantByName(root, name)
     if not root or type(name) ~= "string" then
         return nil
@@ -156,22 +132,36 @@ function SetupLocalModel(LocalModel, RealModel)
     LocalModel.Parent = RealModel.Parent
 end
 
-local function findDescendantByName(root, name)
-    if not root or type(name) ~= "string" then
-        return nil
+function Import.import_Init(LocalModel)
+    if not LocalModel or not LocalModel:IsA("Model") then
+        warn("Import.import_Init: invalid local model")
+        return
     end
 
-    if root.Name == name then
-        return root
+    local RealModel = GetLocalVehiclePacket().Model
+    if not RealModel then
+        warn("Import.import_Init: could not get local vehicle packet model")
+        return
     end
 
-    for _, child in ipairs(root:GetDescendants()) do
-        if child.Name == name then
-            return child
-        end
+    SetupLocalModel(LocalModel, RealModel)
+
+    local realPrimary = RealModel.PrimaryPart or findFirstBasePart(RealModel)
+    if realPrimary and LocalModel.PrimaryPart then
+        pcall(function()
+            LocalModel:SetPrimaryPartCFrame(realPrimary.CFrame)
+        end)
     end
 
-    return nil
+    pcall(function()
+        CleanRealModel(RealModel)
+    end)
+
+    pcall(function()
+        SetModelToEngine(LocalModel, RealModel)
+    end)
+
+    return LocalModel
 end
 
 local function scaleCFrame(cframe, scale)
@@ -401,4 +391,4 @@ function Import.syncWheelOffsets(LocalModel, values)
             end
         end
     end
-    end
+end
