@@ -413,10 +413,35 @@ function Import.syncWheelOffsets(LocalModel, values)
             uiOffset = Vector3.new(0, delta, 0)
         end
 
-        local offset = localOffset * CFrame.new(uiOffset)
-        local desiredWorld = localPrimary.CFrame * offset
+        -- Try to find an explicit marker under LocalModel.Wheels matching the local wheel name
+        local markerWorld = nil
+        local wheelsFolder = LocalModel:FindFirstChild("Wheels", true)
+        if wheelsFolder then
+            local marker = wheelsFolder:FindFirstChild(localName, true)
+            if not marker then
+                marker = LocalModel:FindFirstChild(localName, true)
+            end
+            if marker then
+                if marker:IsA("Model") then
+                    local ok, pivot = pcall(function() return marker:GetPivot() end)
+                    if ok and pivot then
+                        markerWorld = pivot
+                    end
+                elseif marker:IsA("BasePart") then
+                    markerWorld = marker.CFrame
+                end
+            end
+        end
 
-        -- Prefer applying the target relative to the weld's Part1 (engine)
+        local desiredWorld
+        if markerWorld then
+            desiredWorld = markerWorld * CFrame.new(uiOffset)
+        else
+            local offset = localOffset * CFrame.new(uiOffset)
+            desiredWorld = localPrimary.CFrame * offset
+        end
+
+        -- Prefer applying the target relative to the weld's Part1 (engine), otherwise Part0
         local applied = false
         if weld.Part1 and weld.Part1:IsA("BasePart") then
             local ok, target = pcall(function()
