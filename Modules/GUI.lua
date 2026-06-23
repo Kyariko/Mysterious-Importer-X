@@ -183,7 +183,7 @@ function GUI.Init_GUI(UI : ScreenGui)
 
     if viewport then
         local inputBegan = viewport.InputBegan:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton2 then
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
                 viewportDragging = true
                 viewportDragStart = UIS:GetMouseLocation()
                 viewportYawStart = viewportYaw
@@ -192,7 +192,7 @@ function GUI.Init_GUI(UI : ScreenGui)
         end)
 
         local inputEnded = viewport.InputEnded:Connect(function(input)
-            if input.UserInputType == Enum.UserInputType.MouseButton2 then
+            if input.UserInputType == Enum.UserInputType.MouseButton1 then
                 viewportDragging = false
             end
         end)
@@ -223,6 +223,19 @@ function GUI.Init_GUI(UI : ScreenGui)
             print(UI.Main.CarID.Input.Text)
             local model = GUI.App.LoadVehicle and GUI.App.LoadVehicle(UI.Main.CarID.Input.Text)
             GUI.App.Import.import_Init(model)
+            -- MAIN_S is the model scale; apply it first, then apply MAIN_O as a vertical offset
+            if model and GUI.App.Import and GUI.Values then
+                local scale = tonumber(GUI.Values.MAIN_S) or 1
+                pcall(function()
+                    GUI.App.Import.applyScale(model, scale)
+                end)
+
+                local yOffset = tonumber(GUI.Values.MAIN_O) or 0
+                local offsetCFrame = CFrame.new(0, yOffset, 0)
+                pcall(function()
+                    GUI.App.Import.applyOffsets(model, offsetCFrame)
+                end)
+            end
         end
     end)
 
