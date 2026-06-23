@@ -278,6 +278,11 @@ function Import.applyScale(LocalModel, scale)
     pcall(function()
         LocalModel:ScaleTo(scale)
     end)
+
+    local engine = LocalModel:FindFirstChild("LocalCustomEngine")
+    if engine and engine:IsA("BasePart") then
+        LocalModel.PrimaryPart = engine
+    end
 end
 
 function Import.syncWheelOffsets(LocalModel, values)

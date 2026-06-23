@@ -237,12 +237,12 @@ function GUI.Init_GUI(UI : ScreenGui)
                 return
             end
 
+            GUI.App.Import.import_Init(model)
+
             local scale = tonumber(GUI.Values.MAIN_S) or 1
             pcall(function()
                 GUI.App.Import.applyScale(model, scale)
             end)
-
-            GUI.App.Import.import_Init(model)
 
             local yOffset = tonumber(GUI.Values.MAIN_O) or 0
             local offsetCFrame = CFrame.new(0, yOffset, 0)
