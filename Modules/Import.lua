@@ -11,11 +11,6 @@ local wheelScaleStates = setmetatable({}, {__mode = "k"})
 local wheelScaleWatcherStarted = false
 local RunService = game:GetService("RunService")
 
-local function getRealEngine(model)
-    return model.PrimaryPart and model.PrimaryPart:IsA("BasePart") and model.PrimaryPart
-        or findDescendantByName(model, "Engine")
-end
-
 local function findFirstBasePart(model)
     for _, descendant in ipairs(model:GetDescendants()) do
         if descendant:IsA("BasePart") then
@@ -101,6 +96,11 @@ local function findDescendantByName(root, name)
     end
 
     return nil
+end
+
+local function getRealEngine(model)
+    return model.PrimaryPart and model.PrimaryPart:IsA("BasePart") and model.PrimaryPart
+        or findDescendantByName(model, "Engine")
 end
 
 local function getActualVehicleModels()
