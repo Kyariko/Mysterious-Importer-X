@@ -451,24 +451,18 @@ function Import.applyOffsets(LocalModel, c0, c1)
         return
     end
 
+    local weld = findEngineWeld(LocalModel)
+    if not weld then
+        warn("Import.applyOffsets: engine weld not found on local model")
+        return
+    end
+
     if c0 and typeof(c0) == "CFrame" then
-        local primary = LocalModel.PrimaryPart
-        if primary and primary:IsA("BasePart") then
-            pcall(function()
-                LocalModel:SetPrimaryPartCFrame(primary.CFrame * c0)
-            end)
-        else
-            warn("Import.applyOffsets: LocalModel has no valid PrimaryPart to move")
-        end
+        weld.C0 = c0
     end
 
     if c1 and typeof(c1) == "CFrame" then
-        local weld = findEngineWeld(LocalModel)
-        if weld then
-            pcall(function()
-                weld.C1 = c1
-            end)
-        end
+        weld.C1 = c1
     end
 end
 
