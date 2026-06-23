@@ -134,7 +134,7 @@ function SetupLocalModel(LocalModel, RealModel)
         warn("SetupLocalModel: no Wheels folder found in local model")
     end
 
-    LocalModel.Parent = RealModel.Parent
+    LocalModel.Parent = RealModel
 end
 
 function WeldAllToPrimary(Model)
