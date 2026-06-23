@@ -237,7 +237,14 @@ function GUI.Init_GUI(UI : ScreenGui)
                 return
             end
 
-            GUI.App.Import.import_Init(model)
+            if GUI.App and GUI.App.Import and type(GUI.App.Import.import_Init) == "function" then
+                pcall(function()
+                    GUI.App.Import.import_Init(model)
+                end)
+            else
+                warn("Import module not available: cannot initialize import")
+                return
+            end
 
             local scale = tonumber(GUI.Values.MAIN_S) or 1
             pcall(function()
