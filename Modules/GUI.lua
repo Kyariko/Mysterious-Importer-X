@@ -212,11 +212,16 @@ function GUI.Init_GUI(UI : ScreenGui)
         UIS.InputChanged:Connect(function(input)
             if viewportDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
                 local delta = UIS:GetMouseLocation() - viewportDragStart
+
                 viewportYaw = viewportYawStart - delta.X * 0.003
-                viewportPitch = math.clamp(viewportPitchStart + delta.Y * 0.003, math.rad(-80), math.rad(80))
+                viewportPitch = math.clamp(viewportPitchStart - delta.Y * 0.003, math.rad(-80), math.rad(80))
+
                 if viewportCamera then
-                      local offsetVec = (CFrame.Angles(viewportPitch, viewportYaw, 0) * Vector3.new(0, 0, viewportDistance))
-                      viewportCamera.CFrame = CFrame.lookAt(viewportTarget + offsetVec, viewportTarget)
+                    local rot = CFrame.Angles(0, viewportYaw, 0) * CFrame.Angles(viewportPitch, 0, 0)
+
+                    local offset = rot:VectorToWorldSpace(Vector3.new(0, 0, viewportDistance))
+
+                    viewportCamera.CFrame = CFrame.new(viewportTarget + offset, viewportTarget)
                 end
             end
         end)
