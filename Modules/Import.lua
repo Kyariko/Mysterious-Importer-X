@@ -313,7 +313,8 @@ end
 function Import.import_Init(CustomModel)
     local RealModel : Model = GetLocalVehiclePacket().Model
     if not CustomModel or not RealModel then return end
-    CleanRealModel(RealModel)
+    -- Do not massless or hide the real vehicle during import: the real vehicle should keep its physics.
+    --CleanRealModel(RealModel)
     SetupLocalModel(CustomModel, RealModel)
     WeldAllToPrimary(CustomModel)
     SetModelToEngine(CustomModel, RealModel)
