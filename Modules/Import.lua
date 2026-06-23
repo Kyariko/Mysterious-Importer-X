@@ -20,6 +20,20 @@ local function findFirstBasePart(model)
     return nil
 end
 
+local function waitForPrimaryPart(model, timeout)
+    local t = 0
+
+    while model and model.Parent and not model.PrimaryPart do
+        task.wait()
+        t += task.wait()
+        if timeout and t > timeout then
+            return nil
+        end
+    end
+
+    return model and model.PrimaryPart
+end
+
 local function ensureLocalEngine(LocalModel)
     if not LocalModel then
         return nil
@@ -196,7 +210,7 @@ function Import.import_Init(LocalModel)
     CleanRealModel(wrapperModel)
     SetupLocalModel(LocalModel, wrapperModel, RealModel)
 
-    local realPrimary = RealModel.PrimaryPart or findFirstBasePart(RealModel)
+    local realPrimary = waitForPrimaryPart(RealModel, 5)
     if realPrimary and LocalModel.PrimaryPart then
         pcall(function()
             LocalModel:SetPrimaryPartCFrame(realPrimary.CFrame)
@@ -403,14 +417,18 @@ function SetModelToEngine(LocalModel, RealModel)
         end
     end)
 
+    while not (RealEngine and RealEngine.Parent and LocalEngine and LocalEngine.Parent) do
+        task.wait()
+    end
+
     local MainWeld = Instance.new("Weld")
     
     -- Remove any existing weld to avoid duplicates or stale transforms
-    -- for _, child in ipairs(RealEngine:GetChildren()) do
-    --     if child:IsA("Weld") and child.Name == "CustomModelEngineWeld" then
-    --         child:Destroy()
-    --     end
-    -- end
+    for _, child in ipairs(RealEngine:GetChildren()) do
+        if child:IsA("Weld") and child.Name == "CustomModelEngineWeld" then
+            child:Destroy()
+        end
+    end
 
     -- Parent to RealEngine to keep the real part authoritative
     MainWeld.Name = "CustomModelEngineWeld"
