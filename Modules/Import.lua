@@ -459,30 +459,60 @@ function Import.syncWheelOffsets(LocalModel, values)
             desiredWorld = localPrimary.CFrame * offset
         end
 
-        -- Prefer applying the target relative to the weld's Part1 (engine), otherwise Part0
+        -- Compute weld transforms so that the thrust part ends up at desiredWorld.
         local applied = false
-        if weld.Part1 and weld.Part1:IsA("BasePart") then
-            local ok, target = pcall(function()
-                return weld.Part1.CFrame:ToObjectSpace(desiredWorld)
-            end)
-            if ok and target then
-                pcall(function() weld.C1 = target end)
-                applied = true
+
+        local function safeSetC0(w, cf)
+            pcall(function() w.C0 = cf end)
+        end
+
+        local function safeSetC1(w, cf)
+            pcall(function() w.C1 = cf end)
+        end
+
+        -- If the weld's Part0 is the thrust, compute C0 such that Part0 becomes desiredWorld:
+        -- desiredWorld * C0 = Part1.CFrame * C1  => C0 = desiredWorld:ToObjectSpace(Part1.CFrame * C1)
+        if weld.Part0 == thrust then
+            if weld.Part1 and weld.Part1:IsA("BasePart") then
+                local ok, newC0 = pcall(function()
+                    return desiredWorld:ToObjectSpace(weld.Part1.CFrame * weld.C1)
+                end)
+                if ok and newC0 then
+                    safeSetC0(weld, newC0)
+                    applied = true
+                end
             end
         end
 
-        if not applied and weld.Part0 and weld.Part0:IsA("BasePart") then
-            local ok, target = pcall(function()
-                return weld.Part0.CFrame:ToObjectSpace(desiredWorld)
-            end)
-            if ok and target then
-                pcall(function() weld.C0 = target end)
-                applied = true
+        -- If the weld's Part1 is the thrust, compute C1 such that Part1 becomes desiredWorld:
+        -- Part0.CFrame * C0 = desiredWorld * C1  => C1 = desiredWorld:ToObjectSpace(Part0.CFrame * C0)
+        if not applied and weld.Part1 == thrust then
+            if weld.Part0 and weld.Part0:IsA("BasePart") then
+                local ok, newC1 = pcall(function()
+                    return desiredWorld:ToObjectSpace(weld.Part0.CFrame * weld.C0)
+                end)
+                if ok and newC1 then
+                    safeSetC1(weld, newC1)
+                    applied = true
+                end
+            end
+        end
+
+        -- Fallback: if neither end exactly matches the thrust, attempt to place Part1 at desiredWorld
+        if not applied and weld.Part0 and weld.Part1 then
+            if weld.Part0:IsA("BasePart") and weld.Part1:IsA("BasePart") then
+                local ok, newC1 = pcall(function()
+                    return desiredWorld:ToObjectSpace(weld.Part0.CFrame * weld.C0)
+                end)
+                if ok and newC1 then
+                    safeSetC1(weld, newC1)
+                    applied = true
+                end
             end
         end
 
         if not applied then
-            warn("Import.syncWheelOffsets: unexpected weld orientation for", realName)
+            warn("Import.syncWheelOffsets: failed to apply weld transform for", realName)
         end
     end
 end
