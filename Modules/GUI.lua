@@ -3,6 +3,7 @@ local GUI = {}
 local UIS = game:GetService("UserInputService")
 local Players = game:GetService("Players")
 local LocalPlayer =  Players.LocalPlayer
+local ContextActionService = game:GetService("ContextActionService")
 
 
 local dragStart
@@ -182,6 +183,17 @@ function GUI.Init_GUI(UI : ScreenGui)
     end
 
     if viewport then
+        viewport.MouseEnter:Connect(function()
+            ContextActionService:BindAction("ViewportBlockMouse", function() return Enum.ContextActionResult.Sink end, false,
+                Enum.UserInputType.MouseMovement,
+                Enum.UserInputType.MouseButton1,
+                Enum.UserInputType.MouseButton2,
+                Enum.UserInputType.MouseWheel)
+        end)
+
+        viewport.MouseLeave:Connect(function()
+            ContextActionService:UnbindAction("ViewportBlockMouse")
+        end)
         local inputBegan = viewport.InputBegan:Connect(function(input)
             if input.UserInputType == Enum.UserInputType.MouseButton1 then
                 viewportDragging = true
@@ -201,7 +213,7 @@ function GUI.Init_GUI(UI : ScreenGui)
             if viewportDragging and input.UserInputType == Enum.UserInputType.MouseMovement then
                 local delta = UIS:GetMouseLocation() - viewportDragStart
                 viewportYaw = viewportYawStart - delta.X * 0.003
-                viewportPitch = math.clamp(viewportPitchStart - delta.Y * 0.003, math.rad(-80), math.rad(80))
+                viewportPitch = math.clamp(viewportPitchStart + delta.Y * 0.003, math.rad(-80), math.rad(80))
                 if viewportCamera then
                       local offsetVec = (CFrame.Angles(viewportPitch, viewportYaw, 0) * Vector3.new(0, 0, viewportDistance))
                       viewportCamera.CFrame = CFrame.lookAt(viewportTarget + offsetVec, viewportTarget)
