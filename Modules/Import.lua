@@ -385,13 +385,7 @@ function Import.syncWheelOffsets(LocalModel, values)
             uiOffset = Vector3.new(0, delta, 0)
         end
 
-        local scale = tonumber(values and values.MAIN_S) or 1
-        local offset = localOffset
-        if scale ~= 1 then
-            offset = scaleCFrame(offset, scale)
-        end
-        offset = offset * CFrame.new(uiOffset)
-
+        local offset = localOffset * CFrame.new(uiOffset)
         local desired = realPrimary.CFrame * offset
 
         if weld.Part0 == thrust then
