@@ -25,7 +25,7 @@ local function loadRBXM(name)
         writefile(path, data)
     end
 
-    task.wait() -- 👈 important pour éviter race condition
+    task.wait()
 
     local ok, result = pcall(function()
         return game:GetObjects(getcustomasset(path))[1]

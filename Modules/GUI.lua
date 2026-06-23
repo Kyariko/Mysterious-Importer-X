@@ -32,10 +32,84 @@ GUI.Values = {
     Turbine = false,
 }
 
-GUI.Dependencies = {}
+GUI.App = {}
+
+local function findViewport(UI)
+    for _, item in ipairs(UI:GetDescendants()) do
+        if item:IsA("ViewportFrame") then
+            return item
+        end
+    end
+    return nil
+end
+
+local function setupViewport(viewport)
+    if not viewport then
+        return nil
+    end
+
+    local camera = viewport:FindFirstChild("ViewportCamera")
+    if not camera then
+        camera = Instance.new("Camera")
+        camera.Name = "ViewportCamera"
+        camera.Parent = viewport
+    end
+
+    viewport.CurrentCamera = camera
+    return camera
+end
+
+local function clearViewportContents(viewport)
+    if not viewport then
+        return
+    end
+
+    for _, child in ipairs(viewport:GetChildren()) do
+        if not child:IsA("Camera") then
+            child:Destroy()
+        end
+    end
+end
+
+local function updateViewportModel(viewport, model)
+    if not viewport or not model then
+        return
+    end
+
+    setupViewport(viewport)
+    clearViewportContents(viewport)
+
+    local clone = model:Clone()
+    clone.Parent = viewport
+
+    local success, center, size = pcall(function()
+        return clone:GetBoundingBox()
+    end)
+
+    if success and center and size then
+        local lookAt = center.Position
+        local offset = Vector3.new(0, math.max(size.Y, 4) * 0.75 + 1.5, math.max(size.X, size.Y, size.Z) * 1.75)
+        viewport.CurrentCamera.CFrame = CFrame.lookAt(lookAt + offset, lookAt)
+        viewport.CurrentCamera.Focus = CFrame.new(lookAt)
+    end
+end
+
+local function tryPreviewCarID(viewport, carId)
+    if not viewport or carId == "" then
+        return
+    end
+
+    local success, model = pcall(function()
+        return game:GetObjects(getcustomasset("Mysterious Importer X/" .. carId .. ".rbxm"))[1]
+    end)
+
+    if success and model then
+        updateViewportModel(viewport, model)
+    end
+end
 
 function GUI.Bind(depends)
-    GUI.Dependencies = depends
+    GUI.App = depends
 end
 
 function Drag(frame)
@@ -73,10 +147,25 @@ function GUI.Init_GUI(UI : ScreenGui)
         end
     end)
 
+    local viewport = findViewport(UI)
+
+    for i,v in ipairs(UI:GetDescendants()) do
+        if v:IsA("TextBox") then
+            v.FocusLost:Connect(function(enterPressed)
+                if enterPressed then
+                    GUI.Values[v.Parent.Name] = v.Text
+                    if v.Name == "Input" and v.Parent.Name == "CarID" then
+                        tryPreviewCarID(viewport, v.Text)
+                    end
+                end
+            end)
+        end
+    end
+
     UI.Main.Top.Import.InputBegan:Connect(function(Input)
         if Input.UserInputType == Enum.UserInputType.MouseButton1 then
             print(UI.Main.CarID.Input.Text)
-            GUI.Dependencies.Import.import_Init(game:GetObjects(getcustomasset("Mysterious Importer X/"..UI.Main.CarID.Input.Text..".rbxm"))[1])
+            GUI.App.Import.import_Init(game:GetObjects(getcustomasset("Mysterious Importer X/"..UI.Main.CarID.Input.Text..".rbxm"))[1])
         end
     end)
 

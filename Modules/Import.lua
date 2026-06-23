@@ -61,7 +61,6 @@ function SetupLocalModel(LocalModel, RealModel)
     LocalModel.Parent = RealModel.Parent
 end
 
-
 function SetModelToEngine(LocalModel, RealModel)
     local LocalEngine = LocalModel.PrimaryPart
     local RealEngine = RealModel.Parent:FindFirstChild("Engine")
