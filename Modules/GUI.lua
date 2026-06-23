@@ -203,7 +203,8 @@ function GUI.Init_GUI(UI : ScreenGui)
                 viewportYaw = viewportYawStart - delta.X * 0.003
                 viewportPitch = math.clamp(viewportPitchStart - delta.Y * 0.003, math.rad(-80), math.rad(80))
                 if viewportCamera then
-                    viewportCamera.CFrame = CFrame.new(viewportTarget) * CFrame.Angles(0, viewportYaw, 0) * CFrame.new(0, 0, viewportDistance) * CFrame.Angles(viewportPitch, 0, 0)
+                      local offsetVec = (CFrame.Angles(viewportPitch, viewportYaw, 0) * Vector3.new(0, 0, viewportDistance))
+                      viewportCamera.CFrame = CFrame.lookAt(viewportTarget + offsetVec, viewportTarget)
                 end
             end
         end)
@@ -212,7 +213,8 @@ function GUI.Init_GUI(UI : ScreenGui)
             if input.UserInputType == Enum.UserInputType.MouseWheel then
                 viewportDistance = math.clamp(viewportDistance - input.Position.Z * 2, viewportMinDistance, viewportMaxDistance)
                 if viewportCamera then
-                    viewportCamera.CFrame = CFrame.new(viewportTarget) * CFrame.Angles(0, viewportYaw, 0) * CFrame.new(0, 0, viewportDistance) * CFrame.Angles(viewportPitch, 0, 0)
+                    local offsetVec = (CFrame.Angles(viewportPitch, viewportYaw, 0) * Vector3.new(0, 0, viewportDistance))
+                    viewportCamera.CFrame = CFrame.lookAt(viewportTarget + offsetVec, viewportTarget)
                 end
             end
         end)

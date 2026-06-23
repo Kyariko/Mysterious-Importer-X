@@ -274,6 +274,22 @@ local function getWheelScaleNames()
     }
 end
 
+local function findWheelModel(wrapperModel, RealModel, wheelName)
+    if wrapperModel then
+        local wheel = findDescendantByName(wrapperModel, wheelName)
+        if wheel then return wheel end
+    end
+    if RealModel then
+        local wheel = findDescendantByName(RealModel, wheelName)
+        if wheel then return wheel end
+    end
+    if wrapperModel and wrapperModel.Parent then
+        local wheel = findDescendantByName(wrapperModel.Parent, wheelName)
+        if wheel then return wheel end
+    end
+    return nil
+end
+
 local function applyWheelScales(LocalModel, values)
     if not LocalModel or not values then
         return
@@ -306,32 +322,46 @@ local function applyWheelScales(LocalModel, values)
         wheelScaleStates[LocalModel] = store
         if not wheelScaleWatcherStarted then
             wheelScaleWatcherStarted = true
-            local elapsed = 0
-            RunService.Heartbeat:Connect(function(dt)
-                elapsed = elapsed + dt
-                if elapsed < 0.25 then
-                    return
-                end
-                elapsed = 0
-                for trackedModel, scales in pairs(wheelScaleStates) do
-                    if not trackedModel or not trackedModel.Parent then
-                        wheelScaleStates[trackedModel] = nil
-                    else
-                        local wrapper, real = getActualVehicleModels()
-                        if wrapper and real then
-                            local presetTrack = findDescendantByName(wrapper, "Preset") or findDescendantByName(real, "Preset")
-                            if presetTrack then
-                                for localName, scaleValue in pairs(scales) do
-                                    local wheelModel = findDescendantByName(presetTrack, names[localName])
-                                    if wheelModel then
-                                        applyWheelScaleToModel(wheelModel, scaleValue)
-                                    end
+
+            local function onDescendantAdded(desc)
+                pcall(function()
+                    if not (desc:IsA("SpecialMesh") or desc:IsA("MeshPart")) then
+                        return
+                    end
+
+                    local wrapper, real = getActualVehicleModels()
+                    if not (wrapper or real) then
+                        return
+                    end
+
+                    for trackedModel, scales in pairs(wheelScaleStates) do
+                        if not trackedModel or not trackedModel.Parent then
+                            wheelScaleStates[trackedModel] = nil
+                        else
+                            for localName, scaleValue in pairs(scales) do
+                                local wheelModel = findWheelModel(wrapper, real, names[localName])
+                                if wheelModel and desc:IsDescendantOf(wheelModel) then
+                                    applyWheelScaleToModel(wheelModel, scaleValue)
                                 end
                             end
                         end
                     end
-                end
-            end)
+                end)
+            end
+
+            -- connect to current packet model(s) so we get notified when meshes are replaced
+            local packet = GetLocalVehiclePacket()
+            if packet and packet.Model then
+                pcall(function()
+                    packet.Model.DescendantAdded:Connect(onDescendantAdded)
+                end)
+            end
+            local wrapper, real = getActualVehicleModels()
+            if real and real ~= (packet and packet.Model) then
+                pcall(function()
+                    real.DescendantAdded:Connect(onDescendantAdded)
+                end)
+            end
         end
     end
 end
