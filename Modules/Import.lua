@@ -6,6 +6,8 @@ local LocalPlayer =  Players.LocalPlayer
 
 local GetLocalVehiclePacket = require(ReplicatedStorage.Vehicle.VehicleUtils).GetLocalVehiclePacket
 
+local wheelOffsetCache = setmetatable({}, {__mode = "k"})
+
 local function findFirstBasePart(model)
     for _, descendant in ipairs(model:GetDescendants()) do
         if descendant:IsA("BasePart") then
@@ -58,10 +60,9 @@ function CleanRealModel(RealModel)
 end
 
 function SetupLocalModel(LocalModel, RealModel)
+    local wheelsFolder = LocalModel:FindFirstChild("Wheels")
     for _, obj in ipairs(LocalModel:GetDescendants()) do
-        if obj.Name == "Wheels" then
-            obj:Destroy()
-        elseif obj:IsA("BasePart") then
+        if obj:IsA("BasePart") then
             obj.CanCollide = false
             obj.Massless = false
             obj.CanTouch = false
@@ -105,7 +106,55 @@ function SetupLocalModel(LocalModel, RealModel)
 
     LocalModel.PrimaryPart = Engine
     LocalModel.Name = "LocalCustomModel"
+
+    if wheelsFolder then
+        local wheelOffsets = {}
+        for _, localWheel in ipairs(wheelsFolder:GetChildren()) do
+            if localWheel:IsA("Model") then
+                local success, pivot = pcall(function()
+                    return localWheel:GetPivot()
+                end)
+                if success and pivot then
+                    wheelOffsets[localWheel.Name] = Engine.CFrame:ToObjectSpace(pivot)
+                end
+            end
+        end
+        wheelOffsetCache[LocalModel] = wheelOffsets
+        wheelsFolder:Destroy()
+    end
+
     LocalModel.Parent = RealModel.Parent
+end
+
+local function findDescendantByName(root, name)
+    if not root or type(name) ~= "string" then
+        return nil
+    end
+
+    if root.Name == name then
+        return root
+    end
+
+    for _, child in ipairs(root:GetDescendants()) do
+        if child.Name == name then
+            return child
+        end
+    end
+
+    return nil
+end
+
+local function scaleCFrame(cframe, scale)
+    if typeof(cframe) ~= "CFrame" or type(scale) ~= "number" then
+        return cframe
+    end
+
+    local right = cframe.RightVector * scale
+    local up = cframe.UpVector * scale
+    local look = cframe.LookVector * scale
+    local pos = cframe.Position * scale
+
+    return CFrame.fromMatrix(pos, right, up, look)
 end
 
 function SetModelToEngine(LocalModel, RealModel)
@@ -115,19 +164,18 @@ function SetModelToEngine(LocalModel, RealModel)
         return
     end
 
-    local RealEngine = RealModel.Parent:FindFirstChild("Engine")
-    if not RealEngine then
+    local RealEngine = findDescendantByName(RealModel, "Engine")
+    if not RealEngine or not RealEngine:IsA("BasePart") then
         warn("Real vehicle engine part not found")
         return
     end
     -- copy physical properties from the real engine to preserve mass/density
     pcall(function()
-        if RealEngine and RealEngine:IsA("BasePart") and LocalEngine and LocalEngine:IsA("BasePart") then
+        if LocalEngine and LocalEngine:IsA("BasePart") then
             local phys = RealEngine.CustomPhysicalProperties
             if phys then
                 LocalEngine.CustomPhysicalProperties = phys
             end
-            -- ensure local engine keeps mass
             LocalEngine.Massless = false
             LocalEngine.Transparency = 1
             LocalEngine.CanCollide = false
@@ -192,8 +240,81 @@ function Import.applyScale(LocalModel, scale)
     end)
 end
 
+function Import.syncWheelOffsets(LocalModel, values)
+    if not LocalModel then
+        warn("Import.syncWheelOffsets: LocalModel is nil")
+        return
+    end
+
+    local offsets = wheelOffsetCache[LocalModel]
+    if not offsets then
+        warn("Import.syncWheelOffsets: no cached wheel offsets for local model")
+        return
+    end
+
+    local RealModel = GetLocalVehiclePacket().Model
+    if not RealModel then
+        warn("Import.syncWheelOffsets: unable to get packet model")
+        return
+    end
+
+    local preset = RealModel:FindFirstChild("Preset")
+    if not preset then
+        warn("Import.syncWheelOffsets: real preset not found")
+        return
+    end
+
+    local mapping = {
+        FL = "WheelFrontLeft",
+        FR = "WheelFrontRight",
+        RL = "WheelBackLeft",
+        RR = "WheelBackRight",
+    }
+
+    for localName, localOffset in pairs(offsets) do
+        local realName = mapping[localName] or localName
+        local realWheel = preset:FindFirstChild(realName)
+        if not realWheel then
+            warn("Import.syncWheelOffsets: real wheel model not found for", realName)
+            continue
+        end
+
+        local thrust = realWheel:FindFirstChild("Thrust")
+        if not thrust or not thrust:IsA("BasePart") then
+            warn("Import.syncWheelOffsets: Thrust part missing for", realName)
+            continue
+        end
+
+        local weld = thrust:FindFirstChild("Weld")
+        if not weld or not weld:IsA("Weld") then
+            warn("Import.syncWheelOffsets: Weld missing in Thrust for", realName)
+            continue
+        end
+
+            local uiOffset = Vector3.new()
+        if values then
+            local delta = tonumber(values[localName .. "_O"]) or 0
+            uiOffset = Vector3.new(0, delta, 0)
+        end
+
+        local scale = tonumber(values and values.MAIN_S) or 1
+        local offset = localOffset * CFrame.new(uiOffset)
+        if scale ~= 1 then
+            offset = offset * CFrame.new(offset.Position * (scale - 1))
+        end
+
+        if weld.Part0 == thrust and weld.Part1 and weld.Part1.Name == "Engine" then
+            weld.C1 = offset
+        elseif weld.Part1 == thrust and weld.Part0 and weld.Part0.Name == "Engine" then
+            weld.C0 = offset
+        else
+            weld.C0 = offset
+        end
+    end
+end
+
 function Import.import_Init(CustomModel)
-    local RealModel : Model = GetLocalVehiclePacket().Model.Model
+    local RealModel : Model = GetLocalVehiclePacket().Model
     if not CustomModel or not RealModel then return end
     CleanRealModel(RealModel)
     SetupLocalModel(CustomModel, RealModel)

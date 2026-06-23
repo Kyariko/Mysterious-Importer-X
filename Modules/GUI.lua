@@ -235,6 +235,10 @@ function GUI.Init_GUI(UI : ScreenGui)
                 pcall(function()
                     GUI.App.Import.applyOffsets(model, offsetCFrame)
                 end)
+
+                pcall(function()
+                    GUI.App.Import.syncWheelOffsets(model, GUI.Values)
+                end)
             end
         end
     end)
