@@ -44,17 +44,10 @@ end
 function CleanRealModel(RealModel)
     for _, part in ipairs(RealModel:GetDescendants()) do
         if part:IsA("BasePart") then
-            if part:IsA("MeshPart") then
-                part.Transparency = 1
-            end
-
+            part.Transparency = 1
             if part.Name == "Windows" then
                 part.Size = Vector3.one * 0.001
             end
-
-            part.Massless = true
-            part.CanCollide = false
-            part.CanTouch = false
         end
     end
 end
@@ -157,6 +150,20 @@ local function scaleCFrame(cframe, scale)
     return CFrame.fromMatrix(pos, right, up, look)
 end
 
+local function hideLocalModel(Model)
+    if not Model then
+        return
+    end
+
+    for _, part in ipairs(Model:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.Transparency = 1
+            part.CanCollide = false
+            part.CanTouch = false
+        end
+    end
+end
+
 function SetModelToEngine(LocalModel, RealModel)
     local LocalEngine = LocalModel.PrimaryPart
     if not LocalEngine then
@@ -179,6 +186,7 @@ function SetModelToEngine(LocalModel, RealModel)
             LocalEngine.Massless = false
             LocalEngine.Transparency = 1
             LocalEngine.CanCollide = false
+            LocalEngine.CanTouch = false
         end
     end)
 
@@ -297,15 +305,27 @@ function Import.syncWheelOffsets(LocalModel, values)
             uiOffset = Vector3.new(0, delta, 0)
         end
 
-        local offset = localOffset * CFrame.new(uiOffset)
+        local enginePart = findDescendantByName(RealModel, "Engine")
+        if not enginePart or not enginePart:IsA("BasePart") then
+            warn("Import.syncWheelOffsets: real engine part missing")
+            continue
+        end
 
-        if weld.Part0 == thrust and weld.Part1 and weld.Part1.Name == "Engine" then
-            weld.C1 = offset
-        elseif weld.Part1 == thrust and weld.Part0 and weld.Part0.Name == "Engine" then
-            weld.C0 = offset
+        local desired = enginePart.CFrame * (localOffset * CFrame.new(uiOffset))
+
+        if weld.Part0 == thrust and weld.Part1 == enginePart then
+            weld.C0 = thrust.CFrame:ToObjectSpace(desired)
+            weld.C1 = CFrame.new()
+        elseif weld.Part1 == thrust and weld.Part0 == enginePart then
+            weld.C1 = thrust.CFrame:ToObjectSpace(desired)
+            weld.C0 = CFrame.new()
         else
             warn("Import.syncWheelOffsets: unexpected weld orientation for", realName)
-            weld.C0 = offset
+            if weld.Part0 == thrust then
+                weld.C0 = thrust.CFrame:ToObjectSpace(desired)
+            elseif weld.Part1 == thrust then
+                weld.C1 = thrust.CFrame:ToObjectSpace(desired)
+            end
         end
     end
 end
@@ -313,12 +333,10 @@ end
 function Import.import_Init(CustomModel)
     local RealModel : Model = GetLocalVehiclePacket().Model
     if not CustomModel or not RealModel then return end
-    -- Do not massless or hide the real vehicle during import: the real vehicle should keep its physics.
-    --CleanRealModel(RealModel)
+    CleanRealModel(RealModel)
     SetupLocalModel(CustomModel, RealModel)
     WeldAllToPrimary(CustomModel)
     SetModelToEngine(CustomModel, RealModel)
-    
 end
 
 return Import
