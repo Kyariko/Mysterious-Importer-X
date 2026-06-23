@@ -237,29 +237,39 @@ function GUI.Init_GUI(UI : ScreenGui)
                 return
             end
 
-            if GUI.App and GUI.App.Import and type(GUI.App.Import.import_Init) == "function" then
-                pcall(function()
-                    GUI.App.Import.import_Init(model)
-                end)
-            else
+            local app = GUI.App
+            if not app then
+                warn("Import failed: GUI.App is not bound")
+                return
+            end
+
+            local imp = app.Import
+            if not imp then
                 warn("Import module not available: cannot initialize import")
                 return
             end
 
+            if type(imp.import_Init) == "function" then
+                pcall(imp.import_Init, model)
+            else
+                warn("Import.import_Init not present")
+                return
+            end
+
             local scale = tonumber(GUI.Values.MAIN_S) or 1
-            pcall(function()
-                GUI.App.Import.applyScale(model, scale)
-            end)
+            if type(imp.applyScale) == "function" then
+                pcall(imp.applyScale, model, scale)
+            end
 
             local yOffset = tonumber(GUI.Values.MAIN_O) or 0
             local offsetCFrame = CFrame.new(0, yOffset, 0)
-            pcall(function()
-                GUI.App.Import.applyOffsets(model, offsetCFrame)
-            end)
+            if type(imp.applyOffsets) == "function" then
+                pcall(imp.applyOffsets, model, offsetCFrame)
+            end
 
-            pcall(function()
-                GUI.App.Import.syncWheelOffsets(model, GUI.Values)
-            end)
+            if type(imp.syncWheelOffsets) == "function" then
+                pcall(imp.syncWheelOffsets, model, GUI.Values)
+            end
         end
     end)
 
