@@ -144,7 +144,15 @@ function SetupLocalModel(LocalModel, wrapperModel, RealModel)
             warn("SetupLocalModel: Wheels folder found but no valid wheel markers were cached")
         end
         wheelOffsetCache[LocalModel] = wheelOffsets
-        wheelsFolder:Destroy()
+        -- Keep the Wheels markers in the LocalModel so sync can use exact marker pivots.
+        -- Make marker parts invisible and non-colliding instead of destroying them.
+        for _, desc in ipairs(wheelsFolder:GetDescendants()) do
+            if desc:IsA("BasePart") then
+                desc.Transparency = 1
+                desc.CanCollide = false
+                desc.CanTouch = false
+            end
+        end
     else
         warn("SetupLocalModel: no Wheels folder found in local model")
     end
@@ -260,11 +268,21 @@ function SetModelToEngine(LocalModel, RealModel)
 
     local MainWeld = Instance.new("Weld")
     MainWeld.Name = "CustomModelEngineWeld"
-    MainWeld.Parent = LocalEngine
-    MainWeld.Part0 = LocalEngine
-    MainWeld.Part1 = RealEngine
+    -- Parent to RealEngine to keep the real part authoritative
+    MainWeld.Parent = RealEngine
+    -- Make the real engine the Part0 so it remains fixed; local engine is Part1
+    MainWeld.Part0 = RealEngine
+    MainWeld.Part1 = LocalEngine
+    -- Preserve current world-space relationship between the two parts
     MainWeld.C0 = CFrame.new()
-    MainWeld.C1 = CFrame.new()
+    local ok, c1 = pcall(function()
+        return LocalEngine.CFrame:ToObjectSpace(RealEngine.CFrame)
+    end)
+    if ok and c1 then
+        MainWeld.C1 = c1
+    else
+        MainWeld.C1 = CFrame.new()
+    end
 end
 
 function Import.applyOffsets(LocalModel, c0, c1)
