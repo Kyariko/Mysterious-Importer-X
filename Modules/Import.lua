@@ -7,6 +7,9 @@ local LocalPlayer =  Players.LocalPlayer
 local GetLocalVehiclePacket = require(ReplicatedStorage.Vehicle.VehicleUtils).GetLocalVehiclePacket
 
 local wheelOffsetCache = setmetatable({}, {__mode = "k"})
+local wheelScaleStates = setmetatable({}, {__mode = "k"})
+local wheelScaleWatcherStarted = false
+local RunService = game:GetService("RunService")
 
 local function findFirstBasePart(model)
     for _, descendant in ipairs(model:GetDescendants()) do
@@ -217,6 +220,122 @@ local function scaleCFrame(cframe, scale)
     return CFrame.fromMatrix(pos, right, up, look)
 end
 
+local function ensureModelPrimaryPart(model)
+    if not model or not model:IsA("Model") then
+        return nil
+    end
+
+    if model.PrimaryPart and model.PrimaryPart:IsA("BasePart") then
+        return model.PrimaryPart
+    end
+
+    local part = findFirstBasePart(model)
+    if part then
+        model.PrimaryPart = part
+    end
+    return model.PrimaryPart
+end
+
+local function applyWheelScaleToModel(wheelModel, scale)
+    if not wheelModel or scale == nil then
+        return
+    end
+
+    scale = tonumber(scale) or 1
+    if scale == 1 then
+        return
+    end
+
+    ensureModelPrimaryPart(wheelModel)
+    pcall(function()
+        wheelModel:ScaleTo(scale)
+    end)
+end
+
+local function getWheelScaleValues(values)
+    if not values then
+        return nil
+    end
+
+    return {
+        FL = tonumber(values.FL_S) or 1,
+        FR = tonumber(values.FR_S) or 1,
+        RL = tonumber(values.RL_S) or 1,
+        RR = tonumber(values.RR_S) or 1,
+    }
+end
+
+local function getWheelScaleNames()
+    return {
+        FL = "WheelFrontLeft",
+        FR = "WheelFrontRight",
+        RL = "WheelBackLeft",
+        RR = "WheelBackRight",
+    }
+end
+
+local function applyWheelScales(LocalModel, values)
+    if not LocalModel or not values then
+        return
+    end
+
+    local wrapperModel, RealModel = getActualVehicleModels()
+    if not wrapperModel or not RealModel then
+        return
+    end
+
+    local preset = findDescendantByName(wrapperModel, "Preset") or findDescendantByName(RealModel, "Preset")
+    if not preset then
+        return
+    end
+
+    local scaleValues = getWheelScaleValues(values)
+    local names = getWheelScaleNames()
+
+    local store = {}
+    for localName, realName in pairs(names) do
+        local wheelModel = findDescendantByName(preset, realName)
+        if wheelModel then
+            local scale = scaleValues[localName] or 1
+            applyWheelScaleToModel(wheelModel, scale)
+            store[localName] = scale
+        end
+    end
+
+    if next(store) then
+        wheelScaleStates[LocalModel] = store
+        if not wheelScaleWatcherStarted then
+            wheelScaleWatcherStarted = true
+            local elapsed = 0
+            RunService.Heartbeat:Connect(function(dt)
+                elapsed = elapsed + dt
+                if elapsed < 0.25 then
+                    return
+                end
+                elapsed = 0
+                for trackedModel, scales in pairs(wheelScaleStates) do
+                    if not trackedModel or not trackedModel.Parent then
+                        wheelScaleStates[trackedModel] = nil
+                    else
+                        local wrapper, real = getActualVehicleModels()
+                        if wrapper and real then
+                            local presetTrack = findDescendantByName(wrapper, "Preset") or findDescendantByName(real, "Preset")
+                            if presetTrack then
+                                for localName, scaleValue in pairs(scales) do
+                                    local wheelModel = findDescendantByName(presetTrack, names[localName])
+                                    if wheelModel then
+                                        applyWheelScaleToModel(wheelModel, scaleValue)
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+    end
+end
+
 -- helper: hide all BasePart visuals (no longer used)
 
 function SetModelToEngine(LocalModel, RealModel)
@@ -273,58 +392,34 @@ function SetModelToEngine(LocalModel, RealModel)
     end
 end
 
-function Import.applyOffsets(LocalModel, c0, c1)
+local function findEngineWeld(LocalModel)
     if not LocalModel then
-        warn("Import.applyOffsets: LocalModel is nil")
-        return
+        return nil
     end
 
-    local primary = LocalModel.PrimaryPart
-    if not primary then
-        warn("Import.applyOffsets: LocalModel has no PrimaryPart")
-        return
-    end
-
-    -- find the engine weld on the primary part
-    local weld = primary:FindFirstChild("CustomModelEngineWeld")
-    if not weld then
-        -- try searching descendants
-        for _, v in ipairs(primary:GetDescendants()) do
-            if v:IsA("Weld") and v.Name == "CustomModelEngineWeld" then
-                weld = v
-                break
-            end
+    for _, descendant in ipairs(LocalModel:GetDescendants()) do
+        if descendant:IsA("Weld") and descendant.Name == "CustomModelEngineWeld" then
+            return descendant
         end
     end
 
-    if not weld then
-        local RealModel = GetLocalVehiclePacket().Model
-        if RealModel then
-            SetModelToEngine(LocalModel, RealModel)
-            weld = primary:FindFirstChild("CustomModelEngineWeld")
-            if not weld then
-                for _, v in ipairs(primary:GetDescendants()) do
-                    if v:IsA("Weld") and v.Name == "CustomModelEngineWeld" then
-                        weld = v
-                        break
-                    end
+    local wrapperModel, RealModel = getActualVehicleModels()
+    if RealModel then
+        for _, descendant in ipairs(RealModel:GetDescendants()) do
+            if descendant:IsA("Weld") and descendant.Name == "CustomModelEngineWeld" then
+                return descendant
+            end
+        end
+        if wrapperModel then
+            for _, descendant in ipairs(wrapperModel:GetDescendants()) do
+                if descendant:IsA("Weld") and descendant.Name == "CustomModelEngineWeld" then
+                    return descendant
                 end
             end
         end
     end
 
-    if not weld then
-        warn("Import.applyOffsets: engine weld not found on local model")
-        return
-    end
-
-    if c0 and typeof(c0) == "CFrame" then
-        weld.C0 = c0
-    end
-
-    if c1 and typeof(c1) == "CFrame" then
-        weld.C1 = c1
-    end
+    return nil
 end
 
 function Import.applyScale(LocalModel, scale)
@@ -347,6 +442,27 @@ function Import.applyScale(LocalModel, scale)
         for key, offset in pairs(offsets) do
             offsets[key] = scaleCFrame(offset, scale)
         end
+    end
+end
+
+function Import.applyOffsets(LocalModel, c0, c1)
+    if not LocalModel then
+        warn("Import.applyOffsets: LocalModel is nil")
+        return
+    end
+
+    local weld = findEngineWeld(LocalModel)
+    if not weld then
+        warn("Import.applyOffsets: engine weld not found on local model")
+        return
+    end
+
+    if c0 and typeof(c0) == "CFrame" then
+        weld.C0 = c0
+    end
+
+    if c1 and typeof(c1) == "CFrame" then
+        weld.C1 = c1
     end
 end
 
@@ -392,6 +508,10 @@ function Import.syncWheelOffsets(LocalModel, values)
         RL = "WheelBackLeft",
         RR = "WheelBackRight",
     }
+
+    if values then
+        applyWheelScales(LocalModel, values)
+    end
 
     for localName, localOffset in pairs(offsets) do
         local realName = mapping[localName] or localName
