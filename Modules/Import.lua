@@ -274,6 +274,31 @@ local function getWheelScaleNames()
     }
 end
 
+local function findWheelModel(wrapperModel, RealModel, wheelName)
+    if wrapperModel then
+        local wheel = findDescendantByName(wrapperModel, wheelName)
+        if wheel then
+            return wheel
+        end
+    end
+
+    if RealModel then
+        local wheel = findDescendantByName(RealModel, wheelName)
+        if wheel then
+            return wheel
+        end
+    end
+
+    if wrapperModel and wrapperModel.Parent then
+        local wheel = findDescendantByName(wrapperModel.Parent, wheelName)
+        if wheel then
+            return wheel
+        end
+    end
+
+    return nil
+end
+
 local function applyWheelScales(LocalModel, values)
     if not LocalModel or not values then
         return
@@ -284,17 +309,12 @@ local function applyWheelScales(LocalModel, values)
         return
     end
 
-    local preset = findDescendantByName(wrapperModel, "Preset") or findDescendantByName(RealModel, "Preset")
-    if not preset then
-        return
-    end
-
     local scaleValues = getWheelScaleValues(values)
     local names = getWheelScaleNames()
 
     local store = {}
     for localName, realName in pairs(names) do
-        local wheelModel = findDescendantByName(preset, realName)
+        local wheelModel = findWheelModel(wrapperModel, RealModel, realName)
         if wheelModel then
             local scale = scaleValues[localName] or 1
             applyWheelScaleToModel(wheelModel, scale)
@@ -318,14 +338,11 @@ local function applyWheelScales(LocalModel, values)
                         wheelScaleStates[trackedModel] = nil
                     else
                         local wrapper, real = getActualVehicleModels()
-                        if wrapper and real then
-                            local presetTrack = findDescendantByName(wrapper, "Preset") or findDescendantByName(real, "Preset")
-                            if presetTrack then
-                                for localName, scaleValue in pairs(scales) do
-                                    local wheelModel = findDescendantByName(presetTrack, names[localName])
-                                    if wheelModel then
-                                        applyWheelScaleToModel(wheelModel, scaleValue)
-                                    end
+                        if wrapper or real then
+                            for localName, scaleValue in pairs(scales) do
+                                local wheelModel = findWheelModel(wrapper, real, names[localName])
+                                if wheelModel then
+                                    applyWheelScaleToModel(wheelModel, scaleValue)
                                 end
                             end
                         end
@@ -457,12 +474,26 @@ function Import.applyOffsets(LocalModel, c0, c1)
         return
     end
 
+    local localEngine = LocalModel:FindFirstChild("LocalCustomEngine", true) or LocalModel.PrimaryPart
+
     if c0 and typeof(c0) == "CFrame" then
-        weld.C0 = c0
+        if weld.Part1 == localEngine then
+            weld.C1 = weld.C1 * c0
+        elseif weld.Part0 == localEngine then
+            weld.C0 = weld.C0 * c0
+        else
+            warn("Import.applyOffsets: local engine not found on engine weld")
+        end
     end
 
     if c1 and typeof(c1) == "CFrame" then
-        weld.C1 = c1
+        if weld.Part1 == localEngine then
+            weld.C1 = c1
+        elseif weld.Part0 == localEngine then
+            weld.C0 = c1
+        else
+            warn("Import.applyOffsets: local engine not found on engine weld")
+        end
     end
 end
 
