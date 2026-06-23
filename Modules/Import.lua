@@ -96,7 +96,7 @@ function CleanRealModel(RealModel)
 end
 
 function SetupLocalModel(LocalModel, RealModel)
-    local wheelsFolder = LocalModel:FindFirstChild("Wheels")
+    local wheelsFolder = LocalModel:FindFirstChild("Wheels", true)
     for _, obj in ipairs(LocalModel:GetDescendants()) do
         if obj:IsA("BasePart") then
             obj.CanCollide = false
@@ -125,8 +125,13 @@ function SetupLocalModel(LocalModel, RealModel)
                 end
             end
         end
+        if not next(wheelOffsets) then
+            warn("SetupLocalModel: Wheels folder found but no valid wheel markers were cached")
+        end
         wheelOffsetCache[LocalModel] = wheelOffsets
         wheelsFolder:Destroy()
+    else
+        warn("SetupLocalModel: no Wheels folder found in local model")
     end
 
     LocalModel.Parent = RealModel.Parent
@@ -164,6 +169,14 @@ function Import.import_Init(LocalModel)
 
     CleanRealModel(RealModel)
     SetupLocalModel(LocalModel, RealModel)
+
+    local realPrimary = RealModel.PrimaryPart or findFirstBasePart(RealModel)
+    if realPrimary and LocalModel.PrimaryPart then
+        pcall(function()
+            LocalModel:SetPrimaryPartCFrame(realPrimary.CFrame)
+        end)
+    end
+
     WeldAllToPrimary(LocalModel)
     SetModelToEngine(LocalModel, RealModel)
 end
@@ -323,7 +336,7 @@ function Import.syncWheelOffsets(LocalModel, values)
     end
 
     local offsets = wheelOffsetCache[LocalModel]
-    if not offsets then
+    if not offsets or not next(offsets) then
         warn("Import.syncWheelOffsets: no cached wheel offsets for local model")
         return
     end
