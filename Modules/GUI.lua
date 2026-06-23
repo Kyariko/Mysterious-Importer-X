@@ -218,28 +218,41 @@ function GUI.Init_GUI(UI : ScreenGui)
         end)
     end
 
+    local function refreshGuiValues()
+        for _, item in ipairs(UI:GetDescendants()) do
+            if item:IsA("TextBox") and item.Parent then
+                GUI.Values[item.Parent.Name] = item.Text
+            end
+        end
+    end
+
     UI.Main.Top.Import.InputBegan:Connect(function(Input)
         if Input.UserInputType == Enum.UserInputType.MouseButton1 then
-            print(UI.Main.CarID.Input.Text)
-            local model = GUI.App.LoadVehicle and GUI.App.LoadVehicle(UI.Main.CarID.Input.Text)
-            GUI.App.Import.import_Init(model)
-            -- MAIN_S is the model scale; apply it first, then apply MAIN_O as a vertical offset
-            if model and GUI.App.Import and GUI.Values then
-                local scale = tonumber(GUI.Values.MAIN_S) or 1
-                pcall(function()
-                    GUI.App.Import.applyScale(model, scale)
-                end)
+            refreshGuiValues()
 
-                local yOffset = tonumber(GUI.Values.MAIN_O) or 0
-                local offsetCFrame = CFrame.new(0, yOffset, 0)
-                pcall(function()
-                    GUI.App.Import.applyOffsets(model, offsetCFrame)
-                end)
-
-                pcall(function()
-                    GUI.App.Import.syncWheelOffsets(model, GUI.Values)
-                end)
+            local carId = UI.Main.CarID.Input.Text
+            local model = GUI.App.LoadVehicle and GUI.App.LoadVehicle(carId)
+            if not model then
+                warn("Import failed: invalid CarID or vehicle could not be loaded.")
+                return
             end
+
+            local scale = tonumber(GUI.Values.MAIN_S) or 1
+            pcall(function()
+                GUI.App.Import.applyScale(model, scale)
+            end)
+
+            GUI.App.Import.import_Init(model)
+
+            local yOffset = tonumber(GUI.Values.MAIN_O) or 0
+            local offsetCFrame = CFrame.new(0, yOffset, 0)
+            pcall(function()
+                GUI.App.Import.applyOffsets(model, offsetCFrame)
+            end)
+
+            pcall(function()
+                GUI.App.Import.syncWheelOffsets(model, GUI.Values)
+            end)
         end
     end)
 

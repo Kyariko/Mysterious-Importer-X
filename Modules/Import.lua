@@ -258,7 +258,7 @@ function Import.syncWheelOffsets(LocalModel, values)
         return
     end
 
-    local preset = RealModel:FindFirstChild("Preset")
+    local preset = findDescendantByName(RealModel, "Preset")
     if not preset then
         warn("Import.syncWheelOffsets: real preset not found")
         return
@@ -273,41 +273,38 @@ function Import.syncWheelOffsets(LocalModel, values)
 
     for localName, localOffset in pairs(offsets) do
         local realName = mapping[localName] or localName
-        local realWheel = preset:FindFirstChild(realName)
+        local realWheel = findDescendantByName(preset, realName)
         if not realWheel then
             warn("Import.syncWheelOffsets: real wheel model not found for", realName)
             continue
         end
 
-        local thrust = realWheel:FindFirstChild("Thrust")
+        local thrust = realWheel:FindFirstChild("Thrust", true)
         if not thrust or not thrust:IsA("BasePart") then
             warn("Import.syncWheelOffsets: Thrust part missing for", realName)
             continue
         end
 
-        local weld = thrust:FindFirstChild("Weld")
+        local weld = thrust:FindFirstChild("Weld", true)
         if not weld or not weld:IsA("Weld") then
             warn("Import.syncWheelOffsets: Weld missing in Thrust for", realName)
             continue
         end
 
-            local uiOffset = Vector3.new()
+        local uiOffset = Vector3.new()
         if values then
             local delta = tonumber(values[localName .. "_O"]) or 0
             uiOffset = Vector3.new(0, delta, 0)
         end
 
-        local scale = tonumber(values and values.MAIN_S) or 1
         local offset = localOffset * CFrame.new(uiOffset)
-        if scale ~= 1 then
-            offset = offset * CFrame.new(offset.Position * (scale - 1))
-        end
 
         if weld.Part0 == thrust and weld.Part1 and weld.Part1.Name == "Engine" then
             weld.C1 = offset
         elseif weld.Part1 == thrust and weld.Part0 and weld.Part0.Name == "Engine" then
             weld.C0 = offset
         else
+            warn("Import.syncWheelOffsets: unexpected weld orientation for", realName)
             weld.C0 = offset
         end
     end
