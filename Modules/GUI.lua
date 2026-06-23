@@ -95,15 +95,12 @@ local function updateViewportModel(viewport, model)
 end
 
 local function tryPreviewCarID(viewport, carId)
-    if not viewport or carId == "" then
+    if not viewport or carId == "" or not GUI.App.LoadVehicle then
         return
     end
 
-    local success, model = pcall(function()
-        return game:GetObjects(getcustomasset("Mysterious Importer X/" .. carId .. ".rbxm"))[1]
-    end)
-
-    if success and model then
+    local model = GUI.App.LoadVehicle(carId)
+    if model then
         updateViewportModel(viewport, model)
     end
 end
@@ -165,7 +162,8 @@ function GUI.Init_GUI(UI : ScreenGui)
     UI.Main.Top.Import.InputBegan:Connect(function(Input)
         if Input.UserInputType == Enum.UserInputType.MouseButton1 then
             print(UI.Main.CarID.Input.Text)
-            GUI.App.Import.import_Init(game:GetObjects(getcustomasset("Mysterious Importer X/"..UI.Main.CarID.Input.Text..".rbxm"))[1])
+            local model = GUI.App.LoadVehicle and GUI.App.LoadVehicle(UI.Main.CarID.Input.Text)
+            GUI.App.Import.import_Init(model)
         end
     end)
 

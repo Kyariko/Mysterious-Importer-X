@@ -1,5 +1,5 @@
 local base = "https://raw.githubusercontent.com/Kyariko/Mysterious-Importer-X/dev/Modules/"
-local baserbxm = "https://raw.githubusercontent.com/Kyariko/Mysterious-Importer-X/dev/Modules/rbxm/"
+local baseVehicles = "https://raw.githubusercontent.com/Kyariko/Mysterious-Importer-X/dev/Vehicles/"
 
 local cache = {}
 
@@ -9,16 +9,30 @@ if not isfolder(localFolder) then
     makefolder(localFolder)
 end
 
-local function loadRBXM(name)
-    local path = "MIX_CACHE/" .. name .. ".rbxm"
+local function ensureCacheFolder(subfolder)
+    if not subfolder or subfolder == "" then
+        return localFolder
+    end
+
+    local folder = localFolder .. "/" .. subfolder
+    if not isfolder(folder) then
+        makefolder(folder)
+    end
+    return folder
+end
+
+local function loadRBXM(name, rootUrl, cacheSubfolder)
+    local url = (rootUrl or base) .. name .. ".rbxm"
+    local cacheDir = ensureCacheFolder(cacheSubfolder)
+    local path = cacheDir .. "/" .. name .. ".rbxm"
 
     if not isfile(path) then
         local ok, data = pcall(function()
-            return game:HttpGet(base .. name .. ".rbxm")
+            return game:HttpGet(url)
         end)
 
         if not ok then
-            warn("Download failed:", name)
+            warn("Download failed:", name, url)
             return nil
         end
 
@@ -37,6 +51,10 @@ local function loadRBXM(name)
     end
 
     return result
+end
+
+local function loadVehicle(name)
+    return loadRBXM(name, baseVehicles, "Vehicles")
 end
 
 local function loadModule(name)
@@ -70,7 +88,8 @@ local Custom = loadModule("Customization")
 
 local App = {
     Import = Import,
-    Customization = Custom
+    Customization = Custom,
+    LoadVehicle = loadVehicle
 }
 
 GUI.Bind(App)
