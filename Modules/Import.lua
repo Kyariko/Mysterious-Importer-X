@@ -215,7 +215,7 @@ function Import.import_Init(LocalModel)
     CleanRealModel(wrapperModel)
     SetupLocalModel(LocalModel, wrapperModel, RealModel)
 
-    local realPrimary = waitForPrimaryPart(RealModel, 5)
+    local realPrimary = waitForPrimaryPart(wrapperModel, 1)
     if realPrimary and LocalModel.PrimaryPart then
         pcall(function()
             LocalModel:SetPrimaryPartCFrame(realPrimary.CFrame)
