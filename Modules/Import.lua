@@ -20,20 +20,6 @@ local function findFirstBasePart(model)
     return nil
 end
 
-local function waitForPrimaryPart(model, timeout)
-    local t = 0
-
-    while model and model.Parent and not model.PrimaryPart do
-        task.wait()
-        t += task.wait()
-        if timeout and t > timeout then
-            return nil
-        end
-    end
-
-    return model and model.PrimaryPart
-end
-
 local function ensureLocalEngine(LocalModel)
     if not LocalModel then
         return nil
@@ -215,13 +201,6 @@ function Import.import_Init(LocalModel)
     CleanRealModel(wrapperModel)
     SetupLocalModel(LocalModel, wrapperModel, RealModel)
 
-    local realPrimary = waitForPrimaryPart(wrapperModel, 1)
-    if realPrimary and LocalModel.PrimaryPart then
-        pcall(function()
-            LocalModel:SetPrimaryPartCFrame(realPrimary.CFrame)
-        end)
-    end
-
     WeldAllToPrimary(LocalModel)
     SetModelToEngine(LocalModel, RealModel)
 end
@@ -377,7 +356,7 @@ function SetModelToEngine(LocalModel, RealModel)
         return
     end
 
-    local RealEngine = getRealEngine(RealModel)
+    local RealEngine = RealModel.PrimaryPart or getRealEngine(RealModel)
 
     if not RealEngine or not RealEngine:IsA("BasePart") then
         warn("No valid RealEngine found")
